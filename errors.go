@@ -46,3 +46,23 @@ var ErrNameNotSet = apiError{
 	Msg:    "The category name so be searched for is empty!",
 	Status: http.StatusInternalServerError,
 }
+
+var ErrBeginTransaction = apiError{
+	Msg:    "The server was unable to start a database transaction!",
+	Status: http.StatusInternalServerError,
+}
+
+var ErrRequestProductDeletion = apiError{
+	Msg:    "Failed to request the deletion of products!",
+	Status: http.StatusInternalServerError,
+}
+
+var ErrCreateRequest = apiError{
+	Msg:    "Failed to create a new http request!",
+	Status: http.StatusInternalServerError,
+}
+
+var ErrDatabaseCommit = apiError{
+	Msg:    "Failed to commit to database! Rollbacking changes",
+	Status: http.StatusInternalServerError,
+}

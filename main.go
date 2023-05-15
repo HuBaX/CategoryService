@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"net/http"
 	"vsmlab/categoryservice/datahandling"
@@ -41,7 +42,7 @@ func main() {
 	http.HandleFunc("/getCategory", handleGetCategoryById(ctx, queries))
 	http.HandleFunc("/getCategories", handleGetCategories(ctx, queries))
 	http.HandleFunc("/getCategoryByName", handleGetCategoryByName(ctx, queries))
-	http.HandleFunc("/delCategoryById", handleDelCategory(ctx, queries))
+	http.HandleFunc("/delCategoryById", handleDelCategory(ctx, db, queries))
 
 	http.ListenAndServe("0.0.0.0:8081", nil)
 }
@@ -162,27 +163,47 @@ func handleGetCategoryByName(ctx context.Context, queries *datahandling.Queries)
 	}
 }
 
-func handleDelCategory(ctx context.Context, queries *datahandling.Queries) http.HandlerFunc {
+func handleDelCategory(ctx context.Context, db *sql.DB, queries *datahandling.Queries) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
 			setError(w, ErrMethodNotAllowed)
 			return
 		}
 
-		var idJSON map[string]any
-		err := readJSON(r, &idJSON)
-		defer r.Body.Close()
+		idStr := r.URL.Query().Get("id")
+
+		client := &http.Client{}
+		req, err := http.NewRequest("DELETE", "http://product-service:8082/delProductsByCategoryId?id="+idStr, nil)
 		if err != nil {
-			setError(w, ErrReadJSON)
+			setError(w, ErrCreateRequest)
 			return
 		}
 
-		id := idJSON["id"].(int32)
-		err = queries.DelCategory(ctx, id)
+		resp, err := client.Do(req)
 		if err != nil {
+			setError(w, ErrRequestProductDeletion)
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			setError(w, ErrRequestProductDeletion)
+			return
+		}
+
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			setError(w, ErrStrToInt)
+			return
+		}
+
+		err = queries.DelCategory(ctx, int32(id))
+		if err != nil {
+			fmt.Print(err.Error())
 			setError(w, ErrQueryDatabase)
 			return
 		}
+
 		w.WriteHeader(http.StatusOK)
 	}
 }
@@ -198,6 +219,7 @@ func readJSON(r *http.Request, value *map[string]any) error {
 }
 
 func setError(w http.ResponseWriter, err apiError) {
+	fmt.Println(err.Msg)
 	w.WriteHeader(err.Status)
 	w.Write([]byte(err.Msg))
 }

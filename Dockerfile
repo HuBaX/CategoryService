@@ -16,4 +16,4 @@ RUN go build -o categoryservice
 
 EXPOSE 8080
 
-ENTRYPOINT ["./categoryservice"]
+ENTRYPOINT ["./categoryservice"] 
