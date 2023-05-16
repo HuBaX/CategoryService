@@ -94,6 +94,7 @@ func handleGetCategoryById(ctx context.Context, queries *datahandling.Queries) h
 
 		if id < 0 {
 			setError(w, ErrIDNegative)
+			return
 		}
 
 		category, err := queries.GetCategory(ctx, id)
@@ -116,11 +117,14 @@ func handleGetCategories(ctx context.Context, queries *datahandling.Queries) htt
 			return
 		}
 
-		categories, err := queries.GetCategories(ctx)
+		categories := make([]datahandling.Category, 0)
+		queriedCategories, err := queries.GetCategories(ctx)
 		if err != nil {
 			setError(w, ErrQueryDatabase)
 			return
 		}
+
+		categories = append(categories, queriedCategories...)
 
 		categoryMap := map[string][]datahandling.Category{
 			"categories": categories,
@@ -146,11 +150,15 @@ func handleGetCategoryByName(ctx context.Context, queries *datahandling.Queries)
 			setError(w, ErrNameNotSet)
 		}
 
-		categories, err := queries.GetCategoryByName(ctx, name)
+		categories := make([]datahandling.Category, 0)
+
+		queriedCategories, err := queries.GetCategoryByName(ctx, name)
 		if err != nil {
 			setError(w, ErrQueryDatabase)
 			return
 		}
+
+		categories = append(categories, queriedCategories...)
 
 		categoryMap := map[string][]datahandling.Category{
 			"categories": categories,
@@ -172,22 +180,10 @@ func handleDelCategory(ctx context.Context, db *sql.DB, queries *datahandling.Qu
 
 		idStr := r.URL.Query().Get("id")
 
-		client := &http.Client{}
-		req, err := http.NewRequest("DELETE", "http://product-service:8082/delProductsByCategoryId?id="+idStr, nil)
-		if err != nil {
-			setError(w, ErrCreateRequest)
-			return
-		}
+		apiErr := delProductsByCategoryId(idStr)
 
-		resp, err := client.Do(req)
-		if err != nil {
-			setError(w, ErrRequestProductDeletion)
-			return
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			setError(w, ErrRequestProductDeletion)
+		if apiErr != nil {
+			setError(w, *apiErr)
 			return
 		}
 
@@ -199,13 +195,31 @@ func handleDelCategory(ctx context.Context, db *sql.DB, queries *datahandling.Qu
 
 		err = queries.DelCategory(ctx, int32(id))
 		if err != nil {
-			fmt.Print(err.Error())
 			setError(w, ErrQueryDatabase)
 			return
 		}
 
 		w.WriteHeader(http.StatusOK)
 	}
+}
+
+func delProductsByCategoryId(categoryId string) *apiError {
+	client := &http.Client{}
+	req, err := http.NewRequest("DELETE", "http://product-service:8082/delProductsByCategoryId?id="+categoryId, nil)
+	if err != nil {
+		return &ErrCreateRequest
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return &ErrRequestProductDeletion
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return &ErrRequestProductDeletion
+	}
+	return nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) error {
