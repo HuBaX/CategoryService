@@ -1,4 +1,4 @@
--- name: AddCategory :execresult
+-- name: AddCategory :exec
 INSERT INTO category(name) VALUES(?);
 
 -- name: GetCategory :one

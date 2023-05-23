@@ -7,15 +7,15 @@ package datahandling
 
 import (
 	"context"
-	"database/sql"
 )
 
-const addCategory = `-- name: AddCategory :execresult
+const addCategory = `-- name: AddCategory :exec
 INSERT INTO category(name) VALUES(?)
 `
 
-func (q *Queries) AddCategory(ctx context.Context, name string) (sql.Result, error) {
-	return q.db.ExecContext(ctx, addCategory, name)
+func (q *Queries) AddCategory(ctx context.Context, name string) error {
+	_, err := q.db.ExecContext(ctx, addCategory, name)
+	return err
 }
 
 const delCategory = `-- name: DelCategory :exec

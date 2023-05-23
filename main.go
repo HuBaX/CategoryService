@@ -15,6 +15,20 @@ import (
 	"github.com/go-sql-driver/mysql"
 )
 
+type ApiResponse struct {
+	Hostname string `json:"hostname"`
+}
+
+type CategoryResponse struct {
+	Category    datahandling.Category `json:"category"`
+	Apiresponse ApiResponse           `json:"apiresponse"`
+}
+
+type CategoriesResponse struct {
+	Categories  []datahandling.Category `json:"categories"`
+	Apiresponse ApiResponse             `json:"apiresponse"`
+}
+
 func main() {
 	dbUser := os.Getenv("MYSQL_USER")
 	dbAddr := os.Getenv("MYSQL_ADDRESS")
@@ -50,62 +64,84 @@ func main() {
 func handleAddCategory(ctx context.Context, queries *datahandling.Queries) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
-			setError(w, ErrMethodNotAllowed)
+			setError(w, ErrMethodNotAllowed, "")
 			return
 		}
 		var nameJSON map[string]any
 		err := readJSON(r, &nameJSON)
 		defer r.Body.Close()
 		if err != nil {
-			setError(w, ErrReadJSON)
+			setError(w, ErrReadJSON, err.Error())
 			return
 		}
 
 		name := nameJSON["name"].(string)
-		_, err = queries.AddCategory(ctx, name)
+		err = queries.AddCategory(ctx, name)
 		if err != nil {
-			setError(w, ErrQueryDatabase)
+			setError(w, ErrQueryDatabase, err.Error())
 			return
 		}
 
-		w.WriteHeader(http.StatusOK)
+		hostname, err := os.Hostname()
+		if err != nil {
+			setError(w, ErrHostname, err.Error())
+			return
+		}
+		apiResponse := ApiResponse{Hostname: hostname}
+
+		err = writeJSONResponse(w, http.StatusOK, apiResponse)
+		if err != nil {
+			setError(w, ErrWriteJSON, err.Error())
+		}
 	}
 }
 
 func handleGetCategoryById(ctx context.Context, queries *datahandling.Queries) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
-			setError(w, ErrMethodNotAllowed)
+			setError(w, ErrMethodNotAllowed, "")
 			return
 		}
 
 		idString := r.URL.Query().Get("id")
 		if len(idString) == 0 {
-			setError(w, ErrIDNotSet)
+			setError(w, ErrIDNotSet, "")
+			return
 		}
 
 		idInt, err := strconv.Atoi(idString)
 		if err != nil {
-			setError(w, ErrStrToInt)
+			setError(w, ErrStrToInt, "")
 			return
 		}
 
 		id := int32(idInt)
 
 		if id < 0 {
-			setError(w, ErrIDNegative)
+			setError(w, ErrIDNegative, "")
 			return
 		}
 
 		category, err := queries.GetCategory(ctx, id)
 		if err != nil {
-			setError(w, ErrQueryDatabase)
+			setError(w, ErrQueryDatabase, err.Error())
 			return
 		}
 
-		err = writeJSON(w, http.StatusOK, category)
+		hostname, err := os.Hostname()
 		if err != nil {
-			setError(w, ErrWriteJSON)
+			setError(w, ErrHostname, err.Error())
+			return
+		}
+
+		catResponse := CategoryResponse{
+			Category:    category,
+			Apiresponse: ApiResponse{Hostname: hostname},
+		}
+
+		err = writeJSONResponse(w, http.StatusOK, catResponse)
+		if err != nil {
+			setError(w, ErrWriteJSON, err.Error())
 		}
 	}
 }
@@ -113,26 +149,33 @@ func handleGetCategoryById(ctx context.Context, queries *datahandling.Queries) h
 func handleGetCategories(ctx context.Context, queries *datahandling.Queries) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
-			setError(w, ErrMethodNotAllowed)
+			setError(w, ErrMethodNotAllowed, "")
 			return
 		}
 
 		categories := make([]datahandling.Category, 0)
 		queriedCategories, err := queries.GetCategories(ctx)
 		if err != nil {
-			setError(w, ErrQueryDatabase)
+			setError(w, ErrQueryDatabase, err.Error())
 			return
 		}
 
 		categories = append(categories, queriedCategories...)
 
-		categoryMap := map[string][]datahandling.Category{
-			"categories": categories,
+		hostname, err := os.Hostname()
+		if err != nil {
+			setError(w, ErrHostname, err.Error())
+			return
 		}
 
-		err = writeJSON(w, http.StatusOK, categoryMap)
+		catResponse := CategoriesResponse{
+			Categories:  categories,
+			Apiresponse: ApiResponse{Hostname: hostname},
+		}
+
+		err = writeJSONResponse(w, http.StatusOK, catResponse)
 		if err != nil {
-			setError(w, ErrWriteJSON)
+			setError(w, ErrWriteJSON, err.Error())
 		}
 	}
 }
@@ -140,33 +183,39 @@ func handleGetCategories(ctx context.Context, queries *datahandling.Queries) htt
 func handleGetCategoryByName(ctx context.Context, queries *datahandling.Queries) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
-			setError(w, ErrMethodNotAllowed)
+			setError(w, ErrMethodNotAllowed, "")
 			return
 		}
 
 		name := r.URL.Query().Get("name")
 
 		if len(name) == 0 {
-			setError(w, ErrNameNotSet)
+			setError(w, ErrNameNotSet, "")
 		}
 
 		categories := make([]datahandling.Category, 0)
 
 		queriedCategories, err := queries.GetCategoryByName(ctx, name)
 		if err != nil {
-			setError(w, ErrQueryDatabase)
+			setError(w, ErrQueryDatabase, err.Error())
 			return
 		}
 
 		categories = append(categories, queriedCategories...)
 
-		categoryMap := map[string][]datahandling.Category{
-			"categories": categories,
+		hostname, err := os.Hostname()
+		if err != nil {
+			setError(w, ErrHostname, err.Error())
 		}
 
-		err = writeJSON(w, http.StatusOK, categoryMap)
+		catResponse := CategoriesResponse{
+			Categories:  categories,
+			Apiresponse: ApiResponse{Hostname: hostname},
+		}
+
+		err = writeJSONResponse(w, http.StatusOK, catResponse)
 		if err != nil {
-			setError(w, ErrWriteJSON)
+			setError(w, ErrWriteJSON, err.Error())
 		}
 	}
 }
@@ -174,7 +223,7 @@ func handleGetCategoryByName(ctx context.Context, queries *datahandling.Queries)
 func handleDelCategory(ctx context.Context, db *sql.DB, queries *datahandling.Queries) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
-			setError(w, ErrMethodNotAllowed)
+			setError(w, ErrMethodNotAllowed, "")
 			return
 		}
 
@@ -183,23 +232,32 @@ func handleDelCategory(ctx context.Context, db *sql.DB, queries *datahandling.Qu
 		apiErr := delProductsByCategoryId(idStr)
 
 		if apiErr != nil {
-			setError(w, *apiErr)
+			setError(w, *apiErr, "")
 			return
 		}
 
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
-			setError(w, ErrStrToInt)
+			setError(w, ErrStrToInt, err.Error())
 			return
 		}
 
 		err = queries.DelCategory(ctx, int32(id))
 		if err != nil {
-			setError(w, ErrQueryDatabase)
+			setError(w, ErrQueryDatabase, err.Error())
 			return
 		}
 
-		w.WriteHeader(http.StatusOK)
+		hostname, err := os.Hostname()
+		if err != nil {
+			setError(w, ErrHostname, err.Error())
+		}
+
+		apiResponse := ApiResponse{Hostname: hostname}
+		err = writeJSONResponse(w, http.StatusOK, apiResponse)
+		if err != nil {
+			setError(w, ErrWriteJSON, err.Error())
+		}
 	}
 }
 
@@ -222,7 +280,7 @@ func delProductsByCategoryId(categoryId string) *apiError {
 	return nil
 }
 
-func writeJSON(w http.ResponseWriter, status int, value any) error {
+func writeJSONResponse(w http.ResponseWriter, status int, value any) error {
 	w.WriteHeader(status)
 	w.Header().Add("Content-Type", "application/json")
 	return json.NewEncoder(w).Encode(value)
@@ -232,8 +290,9 @@ func readJSON(r *http.Request, value *map[string]any) error {
 	return json.NewDecoder(r.Body).Decode(value)
 }
 
-func setError(w http.ResponseWriter, err apiError) {
+func setError(w http.ResponseWriter, err apiError, returnedErrMsg string) {
 	fmt.Println(err.Msg)
+	fmt.Println(returnedErrMsg)
 	w.WriteHeader(err.Status)
 	w.Write([]byte(err.Msg))
 }

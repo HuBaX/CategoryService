@@ -66,3 +66,8 @@ var ErrDatabaseCommit = apiError{
 	Msg:    "Failed to commit to database! Rollbacking changes",
 	Status: http.StatusInternalServerError,
 }
+
+var ErrHostname = apiError{
+	Msg:    "Couldn't access host name!",
+	Status: http.StatusInternalServerError,
+}
